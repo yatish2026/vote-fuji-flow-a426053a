@@ -1,9 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import i18n from '@/i18n/config';
-import { useToast } from '@/hooks/use-toast';
 
-export const useSpeech = () => {
-  const { toast } = useToast();
+const useSpeech = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const recognitionRef = useRef(null);
@@ -30,7 +28,7 @@ export const useSpeech = () => {
 
   // Text-to-Speech function
   const speak = useCallback((text) => {
-    if (!isSupported || !text.trim()) return;
+    if (!isSupported || !text?.trim()) return;
 
     // Stop any current speech
     window.speechSynthesis.cancel();
@@ -53,25 +51,16 @@ export const useSpeech = () => {
     utterance.onerror = (event) => {
       console.error('Speech synthesis error:', event);
       setIsSpeaking(false);
-      toast({
-        title: 'Error',
-        description: 'Failed to speak text',
-        variant: 'destructive'
-      });
     };
 
     utteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
-  }, [isSupported, toast]);
+  }, [isSupported]);
 
   // Speech-to-Text function
   const startListening = useCallback((onResult) => {
     if (!isSupported) {
-      toast({
-        title: 'Error',
-        description: 'Speech recognition is not supported in your browser',
-        variant: 'destructive'
-      });
+      console.error('Speech recognition is not supported');
       return;
     }
 
@@ -90,26 +79,17 @@ export const useSpeech = () => {
 
     recognition.onstart = () => {
       setIsListening(true);
-      toast({
-        title: 'Voice Commands',
-        description: 'Listening for your voice...',
-      });
     };
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript.trim();
       console.log('Voice transcript:', transcript);
-      onResult(transcript);
+      if (onResult) onResult(transcript);
     };
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event);
       setIsListening(false);
-      toast({
-        title: 'Error',
-        description: `Speech recognition error: ${event.error}`,
-        variant: 'destructive'
-      });
     };
 
     recognition.onend = () => {
@@ -119,7 +99,7 @@ export const useSpeech = () => {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [isSupported, toast]);
+  }, [isSupported]);
 
   // Stop listening function
   const stopListening = useCallback(() => {
@@ -138,3 +118,6 @@ export const useSpeech = () => {
     isSupported
   };
 };
+
+export { useSpeech };
+export default useSpeech;
