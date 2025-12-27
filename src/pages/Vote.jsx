@@ -9,7 +9,7 @@ import { VoiceAssistant } from '@/components/VoiceAssistant';
 import { useSpeech } from '@/hooks/useSpeech';
 import { Clock, Vote as VoteIcon, CheckCircle, Wallet, Shield, Zap, Globe, Activity, Calendar, Users, BarChart3, AlertCircle, ArrowLeft } from 'lucide-react';
 import { ethers } from 'ethers';
-import { FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI } from '../lib/contract';
+import { FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI, REVOTING_CONTRACT_ADDRESS, REVOTING_CONTRACT_ABI } from '../lib/contract';
 import AIInsights from '@/components/AIInsights';
 
 const Vote = () => {
@@ -234,9 +234,11 @@ const Vote = () => {
       
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      const contract = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI, signer);
+      
+      // Use the new re-voting contract that supports vote overwriting
+      const revotingContract = new ethers.Contract(REVOTING_CONTRACT_ADDRESS, REVOTING_CONTRACT_ABI, signer);
 
-      const tx = await contract.vote(selectedElectionId, candidateId);
+      const tx = await revotingContract.vote(selectedElectionId, candidateId);
       toast({
         title: "Transaction Submitted",
         description: "Your vote is being processed...",
@@ -256,10 +258,19 @@ const Vote = () => {
       fetchElectionDetails(selectedElectionId);
     } catch (error) {
       console.error('Error voting:', error);
-      // Coercion-resistant: Allow re-voting, don't show specific error for already voted
+      
+      let errorMessage = 'Failed to submit vote. Please try again.';
+      if (error.code === 'CALL_EXCEPTION' || error.message?.includes('missing revert data')) {
+        errorMessage = 'Vote rejected. Please ensure the election is active.';
+      } else if (error.code === 4001 || error.message?.includes('user rejected')) {
+        errorMessage = 'Transaction was cancelled.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Vote Failed",
-        description: error.message || "Failed to submit vote",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

@@ -10,7 +10,7 @@ import {
   Wallet, Trophy, ArrowLeft, Calendar
 } from 'lucide-react';
 import { ethers } from 'ethers';
-import { FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI } from '@/lib/contract';
+import { FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI, REVOTING_CONTRACT_ADDRESS, REVOTING_CONTRACT_ABI } from '@/lib/contract';
 import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from './LanguageSelector';
 import { VoiceControls } from './VoiceControls';
@@ -273,7 +273,9 @@ const ElectionVoting = ({ electionId, onBack }) => {
       setIsVoting(true);
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      const contract = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI, signer);
+      
+      // Use the new re-voting contract that supports vote overwriting
+      const revotingContract = new ethers.Contract(REVOTING_CONTRACT_ADDRESS, REVOTING_CONTRACT_ABI, signer);
 
       toast({
         title: t('voting.voting'),
@@ -281,7 +283,7 @@ const ElectionVoting = ({ electionId, onBack }) => {
         variant: 'default'
       });
 
-      const tx = await contract.vote(electionId, candidateId);
+      const tx = await revotingContract.vote(electionId, candidateId);
       await tx.wait();
 
       // Coercion-resistant: Show neutral success message without revealing candidate
@@ -301,9 +303,7 @@ const ElectionVoting = ({ electionId, onBack }) => {
       let errorMessage = 'Failed to cast vote. Please try again.';
       
       if (error.code === 'CALL_EXCEPTION' || error.message?.includes('missing revert data')) {
-        // This typically means the contract rejected the transaction
-        // Common reasons: already voted (contract doesn't support re-voting), election ended, invalid candidate
-        errorMessage = 'Vote rejected by the smart contract. The current contract does not support re-voting. Each wallet can only vote once per election.';
+        errorMessage = 'Vote rejected by the smart contract. Please ensure the election is active.';
       } else if (error.code === 4001 || error.message?.includes('user rejected')) {
         errorMessage = 'Transaction was cancelled by the user.';
       } else if (error.message?.includes('insufficient funds')) {
