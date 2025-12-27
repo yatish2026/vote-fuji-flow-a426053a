@@ -275,14 +275,13 @@ const ElectionVoting = ({ electionId, onBack }) => {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI, signer);
 
-      const tx = await contract.vote(electionId, candidateId);
-
       toast({
         title: t('voting.voting'),
         description: 'Processing your vote...',
         variant: 'default'
       });
 
+      const tx = await contract.vote(electionId, candidateId);
       await tx.wait();
 
       // Coercion-resistant: Show neutral success message without revealing candidate
@@ -297,11 +296,25 @@ const ElectionVoting = ({ electionId, onBack }) => {
       fetchElectionData();
     } catch (error) {
       console.error('Voting error:', error);
-      // Coercion-resistant: Allow re-voting, don't block on "Already voted"
-      // The smart contract should handle this by overwriting the previous vote
+      
+      // Parse the error to provide better feedback
+      let errorMessage = 'Failed to cast vote. Please try again.';
+      
+      if (error.code === 'CALL_EXCEPTION' || error.message?.includes('missing revert data')) {
+        // This typically means the contract rejected the transaction
+        // Common reasons: already voted (contract doesn't support re-voting), election ended, invalid candidate
+        errorMessage = 'Vote rejected by the smart contract. The current contract does not support re-voting. Each wallet can only vote once per election.';
+      } else if (error.code === 4001 || error.message?.includes('user rejected')) {
+        errorMessage = 'Transaction was cancelled by the user.';
+      } else if (error.message?.includes('insufficient funds')) {
+        errorMessage = 'Insufficient AVAX for gas fees. Please add funds to your wallet.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: t('common.error'),
-        description: error.message || t('voting.voteError'),
+        description: errorMessage,
         variant: 'destructive'
       });
     } finally {
