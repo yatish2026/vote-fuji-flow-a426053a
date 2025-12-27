@@ -13,7 +13,7 @@ import { ethers } from 'ethers';
 import ElectionManager from '@/components/ElectionManager';
 import AIInsights from '@/components/AIInsights';
 import VoiceAssistant from '@/components/VoiceAssistant';
-import { FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI } from '@/lib/contract';
+import { FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI, REVOTING_CONTRACT_ADDRESS, REVOTING_CONTRACT_ABI } from '@/lib/contract';
 import { useTranslation } from 'react-i18next';
 
 const NewAdmin = () => {
@@ -364,11 +364,27 @@ const NewAdmin = () => {
         variant: 'default'
       });
 
-      await tx.wait();
+      const receipt = await tx.wait();
+      
+      // Get the election ID from the transaction or contract
+      const factoryContract = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI, provider);
+      const electionCount = await factoryContract.electionCount();
+      const newElectionId = Number(electionCount) - 1; // Latest election ID
+      
+      // Also start the election on the re-voting contract
+      toast({
+        title: 'Activating Re-voting',
+        description: 'Please confirm the second transaction to enable re-voting...',
+        variant: 'default'
+      });
+      
+      const revotingContract = new ethers.Contract(REVOTING_CONTRACT_ADDRESS, REVOTING_CONTRACT_ABI, signer);
+      const startTx = await revotingContract.startElection(newElectionId);
+      await startTx.wait();
       
       toast({
         title: 'Success!',
-        description: 'Election created successfully',
+        description: 'Election created with re-voting enabled',
         variant: 'default'
       });
       
