@@ -279,16 +279,17 @@ const ElectionVoting = ({ electionId, onBack }) => {
 
       toast({
         title: t('voting.voting'),
-        description: t('voting.voting'),
+        description: 'Processing your vote...',
         variant: 'default'
       });
 
       await tx.wait();
 
+      // Coercion-resistant: Show neutral success message without revealing candidate
       setHasVoted(true);
       toast({
-        title: t('common.success'),
-        description: t('voting.voteSuccess'),
+        title: 'Vote Successfully Recorded',
+        description: 'Your vote has been securely recorded on the blockchain.',
         variant: 'default'
       });
 
@@ -296,20 +297,13 @@ const ElectionVoting = ({ electionId, onBack }) => {
       fetchElectionData();
     } catch (error) {
       console.error('Voting error:', error);
-      if (error.message.includes('Already voted')) {
-        setHasVoted(true);
-        toast({
-          title: t('voting.hasVoted'),
-          description: t('voting.hasVoted'),
-          variant: 'destructive'
-        });
-      } else {
-        toast({
-          title: t('common.error'),
-          description: error.message || t('voting.voteError'),
-          variant: 'destructive'
-        });
-      }
+      // Coercion-resistant: Allow re-voting, don't block on "Already voted"
+      // The smart contract should handle this by overwriting the previous vote
+      toast({
+        title: t('common.error'),
+        description: error.message || t('voting.voteError'),
+        variant: 'destructive'
+      });
     } finally {
       setIsVoting(false);
     }
@@ -500,9 +494,25 @@ const ElectionVoting = ({ electionId, onBack }) => {
           )}
         </Card>
 
-        {/* Voting Section */}
-        {electionStarted && !electionEnded && !hasVoted && (
+        {/* Voting Section - Coercion Resistant: Always show voting option until deadline */}
+        {electionStarted && !electionEnded && (
           <div className="space-y-6 mb-8">
+            {/* Show neutral confirmation after voting, but still allow re-voting */}
+            {hasVoted && (
+              <Card className="p-6 bg-gradient-to-br from-success/10 to-success/5 border-success/30 mb-6">
+                <div className="text-center">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-success" />
+                  <h3 className="text-xl font-semibold text-success mb-2">Vote Successfully Recorded</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Your vote has been securely recorded on the blockchain.
+                  </p>
+                  <p className="text-muted-foreground text-xs mt-2">
+                    You may update your vote until the deadline if you wish.
+                  </p>
+                </div>
+              </Card>
+            )}
+            
             {/* Step 1: Connect Wallet */}
             {!isConnected ? (
               <Card className="p-8 bg-gradient-to-br from-card/90 to-card/70 backdrop-blur-xl border-primary/30">
@@ -587,15 +597,15 @@ const ElectionVoting = ({ electionId, onBack }) => {
                 onEmailCollected={handleEmailCollected}
               />
             ) : (
-              /* Step 4: Vote for Candidate */
+              /* Step 4: Vote for Candidate - Always visible until deadline */
               <Card className="p-8 bg-gradient-to-br from-card/90 to-card/70 backdrop-blur-xl border-primary/30">
                 <div className="mb-4 p-3 bg-success/10 rounded-lg text-center">
                   <p className="text-sm text-success">
-                    ✓ Wallet Connected | ✓ ID Verified ({govtIdType.toUpperCase()}: {govtId})
+                    ✓ Wallet Connected | ✓ ID Verified
                   </p>
                 </div>
                 <h2 className="text-2xl font-bold mb-6 text-center bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  {t('voting.selectCandidate')}
+                  {hasVoted ? 'Update Your Vote' : t('voting.selectCandidate')}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {candidates.map((candidate) => (
