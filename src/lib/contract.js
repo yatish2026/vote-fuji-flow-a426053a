@@ -1,5 +1,89 @@
 export const FACTORY_CONTRACT_ADDRESS = "0x5638def6c0255Ef32f4bAE9E1b5C5B96c0fac81a";
 
+// New coercion-resistant voting contract that supports re-voting
+export const REVOTING_CONTRACT_ADDRESS = "0x8295F704484Fc04626481D32d9f126E990367194";
+
+export const REVOTING_CONTRACT_ABI = [
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "_electionId", "type": "uint256" },
+      { "internalType": "uint256", "name": "_candidateId", "type": "uint256" },
+      { "internalType": "string", "name": "_name", "type": "string" }
+    ],
+    "name": "addCandidate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "_electionId", "type": "uint256" }
+    ],
+    "name": "startElection",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "_electionId", "type": "uint256" },
+      { "internalType": "uint256", "name": "_candidateId", "type": "uint256" }
+    ],
+    "name": "vote",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "name": "candidates",
+    "outputs": [
+      { "internalType": "string", "name": "name", "type": "string" },
+      { "internalType": "uint256", "name": "votes", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "name": "elections",
+    "outputs": [
+      { "internalType": "bool", "name": "active", "type": "bool" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "name": "hasVoted",
+    "outputs": [
+      { "internalType": "bool", "name": "", "type": "bool" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "name": "voterChoice",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
+
 export const FACTORY_CONTRACT_ABI = [
   {
     "inputs": [
