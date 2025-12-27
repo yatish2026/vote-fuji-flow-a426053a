@@ -245,16 +245,18 @@ const Vote = () => {
 
       await tx.wait();
       
+      // Coercion-resistant: Show neutral success message without revealing candidate
       setHasVoted(true);
       toast({
-        title: "Vote Successful!",
-        description: `Your vote has been recorded`,
+        title: "Vote Successfully Recorded",
+        description: "Your vote has been securely recorded on the blockchain.",
         variant: "default"
       });
 
       fetchElectionDetails(selectedElectionId);
     } catch (error) {
       console.error('Error voting:', error);
+      // Coercion-resistant: Allow re-voting, don't show specific error for already voted
       toast({
         title: "Vote Failed",
         description: error.message || "Failed to submit vote",
@@ -463,16 +465,22 @@ const Vote = () => {
                   </div>
                 </Card>
 
-                {hasVoted ? (
-                  <Card className="p-8 text-center bg-gradient-to-br from-success/10 to-success/5 border-success/30">
-                    <CheckCircle className="w-12 h-12 mx-auto mb-4 text-success" />
-                    <h3 className="text-2xl font-semibold mb-2 text-success">Vote Recorded!</h3>
-                    <p className="text-muted-foreground">Your vote has been permanently recorded on the blockchain</p>
+                {/* Coercion-resistant: Show neutral confirmation but still allow re-voting */}
+                {hasVoted && (
+                  <Card className="p-6 mb-6 bg-gradient-to-br from-success/10 to-success/5 border-success/30">
+                    <div className="text-center">
+                      <CheckCircle className="w-10 h-10 mx-auto mb-3 text-success" />
+                      <h3 className="text-xl font-semibold text-success mb-2">Vote Successfully Recorded</h3>
+                      <p className="text-muted-foreground text-sm">Your vote has been securely recorded on the blockchain.</p>
+                      <p className="text-muted-foreground text-xs mt-2">You may update your vote until the deadline if you wish.</p>
+                    </div>
                   </Card>
-                ) : selectedElection.active ? (
+                )}
+                
+                {selectedElection.active ? (
                   <Card className="p-6">
                     <h3 className="text-2xl font-bold mb-6 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                      Cast Your Vote
+                      {hasVoted ? 'Update Your Vote' : 'Cast Your Vote'}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {candidates.map((candidate) => (
