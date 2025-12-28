@@ -242,16 +242,8 @@ export function WebcamMonitor({
     );
   }
 
-  // Render loading/initializing state
-  if (hasPermission === null && autoStart) {
-    return (
-      <div className="bg-card/50 backdrop-blur border border-border/50 rounded-xl p-6 text-center">
-        <Loader2 className="w-8 h-8 text-primary mx-auto mb-3 animate-spin" />
-        <p className="text-muted-foreground">Initializing camera...</p>
-        <p className="text-xs text-muted-foreground mt-1">Please allow camera access when prompted</p>
-      </div>
-    );
-  }
+  // Render loading state but keep video element mounted so stream can attach
+  const isInitializing = hasPermission === null && autoStart;
 
   // Compact mode for inline display
   if (compact) {
