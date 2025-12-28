@@ -28,16 +28,26 @@ export function WebcamMonitor({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
 
   const [isActive, setIsActive] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [previewVisible, setPreviewVisible] = useState(showPreview);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const { state, analyzeFrame, getVoteRiskData, reset } = useAnomalyDetection();
 
   // Start webcam
   const startCamera = useCallback(async () => {
+    console.log('Starting camera...');
+    setCameraError(null);
+    
     try {
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not supported in this browser');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -46,22 +56,54 @@ export function WebcamMonitor({
         },
       });
 
+      console.log('Camera stream obtained:', stream);
+
+      if (!mountedRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        
+        // Wait for video to be ready
+        videoRef.current.onloadedmetadata = () => {
+          console.log('Video metadata loaded');
+          if (videoRef.current && mountedRef.current) {
+            videoRef.current.play()
+              .then(() => {
+                console.log('Video playing');
+                setIsActive(true);
+                setHasPermission(true);
+              })
+              .catch(err => {
+                console.error('Video play error:', err);
+                setCameraError('Failed to play video stream');
+              });
+          }
+        };
       }
 
       streamRef.current = stream;
-      setIsActive(true);
-      setHasPermission(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Camera access error:', err);
       setHasPermission(false);
+      
+      if (err.name === 'NotAllowedError') {
+        setCameraError('Camera permission denied. Please allow camera access.');
+      } else if (err.name === 'NotFoundError') {
+        setCameraError('No camera found on this device.');
+      } else if (err.name === 'NotReadableError') {
+        setCameraError('Camera is being used by another application.');
+      } else {
+        setCameraError(err.message || 'Failed to access camera');
+      }
     }
   }, []);
 
   // Stop webcam
   const stopCamera = useCallback(() => {
+    console.log('Stopping camera...');
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
@@ -69,6 +111,9 @@ export function WebcamMonitor({
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setIsActive(false);
     reset();
@@ -103,13 +148,28 @@ export function WebcamMonitor({
     }
   }, [isActive, analyzeFrame, getVoteRiskData, onRiskUpdate]);
 
-  // Auto-start camera
+  // Auto-start camera on mount
   useEffect(() => {
+    mountedRef.current = true;
+    
     if (autoStart) {
-      startCamera();
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        startCamera();
+      }, 500);
+      
+      return () => {
+        clearTimeout(timer);
+        mountedRef.current = false;
+        stopCamera();
+      };
     }
-    return () => stopCamera();
-  }, [autoStart, startCamera, stopCamera]);
+    
+    return () => {
+      mountedRef.current = false;
+      stopCamera();
+    };
+  }, [autoStart]); // Only depend on autoStart
 
   // Start periodic analysis when camera is active
   useEffect(() => {
@@ -164,17 +224,31 @@ export function WebcamMonitor({
         <CameraOff className="w-8 h-8 text-red-400 mx-auto mb-2" />
         <p className="text-red-400 font-medium">Camera Access Required</p>
         <p className="text-sm text-muted-foreground mt-1">
-          Please allow camera access for secure voting verification
+          {cameraError || 'Please allow camera access for secure voting verification'}
         </p>
         <Button 
           variant="outline" 
           size="sm" 
-          onClick={startCamera}
+          onClick={() => {
+            setHasPermission(null);
+            startCamera();
+          }}
           className="mt-3"
         >
           <Camera className="w-4 h-4 mr-2" />
           Retry Camera Access
         </Button>
+      </div>
+    );
+  }
+
+  // Render loading/initializing state
+  if (hasPermission === null && autoStart) {
+    return (
+      <div className="bg-card/50 backdrop-blur border border-border/50 rounded-xl p-6 text-center">
+        <Loader2 className="w-8 h-8 text-primary mx-auto mb-3 animate-spin" />
+        <p className="text-muted-foreground">Initializing camera...</p>
+        <p className="text-xs text-muted-foreground mt-1">Please allow camera access when prompted</p>
       </div>
     );
   }
