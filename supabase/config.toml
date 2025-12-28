@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.get-user-email]
 verify_jwt = false
+
+[functions.anomaly-detection]
+verify_jwt = false

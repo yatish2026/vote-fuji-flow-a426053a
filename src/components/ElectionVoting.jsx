@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import {
   CheckCircle, Clock, Users, BarChart3, Vote as VoteIcon,
-  Wallet, Trophy, ArrowLeft, Calendar
+  Wallet, Trophy, ArrowLeft, Calendar, AlertTriangle
 } from 'lucide-react';
 import { ethers } from 'ethers';
 import { FACTORY_CONTRACT_ADDRESS, FACTORY_CONTRACT_ABI, REVOTING_CONTRACT_ADDRESS, REVOTING_CONTRACT_ABI } from '@/lib/contract';
@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from './LanguageSelector';
 import { VoiceControls } from './VoiceControls';
 import EmailService, { sendElectionResults } from './EmailService';
+import { WebcamMonitor } from './WebcamMonitor';
 
 const ElectionVoting = ({ electionId, onBack }) => {
   const { t } = useTranslation();
@@ -34,6 +35,15 @@ const ElectionVoting = ({ electionId, onBack }) => {
   const [govtIdAuthenticated, setGovtIdAuthenticated] = useState(false);
   const [govtId, setGovtId] = useState('');
   const [govtIdType, setGovtIdType] = useState('voter');
+  
+  // Anomaly detection state
+  const [riskData, setRiskData] = useState({
+    riskScore: 0,
+    anomalyFlags: false,
+    flagDetails: [],
+    isFlagged: false,
+  });
+  const [showRevoteWarning, setShowRevoteWarning] = useState(false);
 
   useEffect(() => {
     fetchElectionData();
@@ -284,15 +294,41 @@ const ElectionVoting = ({ electionId, onBack }) => {
       });
 
       const tx = await revotingContract.vote(electionId, candidateId);
-      await tx.wait();
+      const receipt = await tx.wait();
 
-      // Coercion-resistant: Show neutral success message without revealing candidate
+      // Generate vote hash from transaction
+      const voteHash = receipt.hash;
+      
+      // Prepare vote metadata with anomaly detection data
+      const voteMetadata = {
+        voteHash,
+        riskScore: riskData.riskScore,
+        anomalyFlags: riskData.anomalyFlags,
+        flagDetails: riskData.flagDetails,
+        isFlagged: riskData.isFlagged,
+        timestamp: Date.now(),
+      };
+      
+      console.log('Vote recorded with metadata:', voteMetadata);
+      
+      // Show appropriate message based on risk status
+      if (riskData.isFlagged) {
+        setShowRevoteWarning(true);
+        toast({
+          title: 'Vote Recorded - Review Flagged',
+          description: 'Unusual activity detected. You may re-vote to update your choice.',
+          variant: 'default'
+        });
+      } else {
+        // Coercion-resistant: Show neutral success message without revealing candidate
+        toast({
+          title: 'Vote Successfully Recorded',
+          description: 'Your vote has been securely recorded on the blockchain.',
+          variant: 'default'
+        });
+      }
+
       setHasVoted(true);
-      toast({
-        title: 'Vote Successfully Recorded',
-        description: 'Your vote has been securely recorded on the blockchain.',
-        variant: 'default'
-      });
 
       // Refresh data
       fetchElectionData();
@@ -319,6 +355,14 @@ const ElectionVoting = ({ electionId, onBack }) => {
       });
     } finally {
       setIsVoting(false);
+    }
+  };
+
+  // Handler for webcam risk updates
+  const handleRiskUpdate = (newRiskData) => {
+    setRiskData(newRiskData);
+    if (newRiskData.isFlagged) {
+      setShowRevoteWarning(true);
     }
   };
 
@@ -507,11 +551,51 @@ const ElectionVoting = ({ electionId, onBack }) => {
           )}
         </Card>
 
+        {/* Webcam Anomaly Detection - Only show when voting section is visible */}
+        {electionStarted && !electionEnded && (
+          <div className="mb-6">
+            <WebcamMonitor 
+              onRiskUpdate={handleRiskUpdate}
+              analysisInterval={3000}
+              autoStart={true}
+              showPreview={true}
+            />
+          </div>
+        )}
+
         {/* Voting Section - Coercion Resistant: Always show voting option until deadline */}
         {electionStarted && !electionEnded && (
           <div className="space-y-6 mb-8">
+            {/* Flagged vote warning with re-vote option */}
+            {showRevoteWarning && riskData.isFlagged && (
+              <Card className="p-6 bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30 mb-6">
+                <div className="flex items-start gap-4">
+                  <AlertTriangle className="w-10 h-10 text-yellow-500 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-yellow-400 mb-2">
+                      Unusual Activity Detected
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Your vote has been flagged due to detected anomalies. This does NOT invalidate your vote.
+                    </p>
+                    <ul className="text-xs text-muted-foreground mb-3 space-y-1">
+                      {riskData.flagDetails.map((flag, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full" />
+                          {flag}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-sm text-yellow-400">
+                      You may re-vote below to update your choice if you feel coerced.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+            
             {/* Show neutral confirmation after voting, but still allow re-voting */}
-            {hasVoted && (
+            {hasVoted && !riskData.isFlagged && (
               <Card className="p-6 bg-gradient-to-br from-success/10 to-success/5 border-success/30 mb-6">
                 <div className="text-center">
                   <CheckCircle className="w-12 h-12 mx-auto mb-3 text-success" />
